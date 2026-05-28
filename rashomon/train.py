@@ -19,7 +19,7 @@
 import numpy as np
 import pandas as pd
 from sklearn.tree import DecisionTreeClassifier
-from sklearn.model_selection import train_test_split, cross_val_score
+from sklearn.model_selection import train_test_split, cross_val_score, cross_val_predict
 from sklearn.metrics import accuracy_score
 import urllib.request
 import os
@@ -284,6 +284,27 @@ def build_rashomon_set(X, y, epsilon=0.05):
     for m in rashomon_models:
         m['model'].fit(X, y)
         m['predictions'] = m['model'].predict(X).tolist()
+
+    print("\nGenerating per-patient predictions for Rashomon Set models...")
+    print("Using cross_val_predict — each patient predicted by a model")
+    print("that was trained WITHOUT that patient (no data leakage).\n")
+
+    for i, m in enumerate(rashomon_models):
+
+    # cross_val_predict runs 5-fold CV and returns one prediction per patient.
+    # Crucially: each patient's prediction comes from a model trained
+    # on the OTHER 4 folds — the model never saw that patient during training.
+    # This is the honest way to measure disagreement across models.
+        cv_preds = cross_val_predict(m['model'], X, y, cv=5)
+        m['predictions'] = cv_preds.tolist()
+
+    # We ALSO fit on the full dataset so that feature_importances_
+    # is available when analyze.py reads m['model'].feature_importances_
+    # Note: this fit is only used for feature importance, NOT predictions.
+        m['model'].fit(X, y)
+
+        if (i + 1) % 100 == 0:
+            print(f"  {i+1}/{len(rashomon_models)} models processed...")
 
     # Accuracy summary
     in_accs  = [m['accuracy'] for m in rashomon_models]
