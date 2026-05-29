@@ -279,28 +279,28 @@ def build_rashomon_set(X, y, epsilon=0.05):
     # predictions for all 297 patients. analyze.py uses these to answer:
     # "For patient John, what fraction of Rashomon Set models predict disease?"
     # A 95% agreement = we're confident. A 50% split = deeply uncertain.
+    # ------------------------------------------------------------------
+    # Generate per-patient predictions for every Rashomon Set model.
+    #
+    # We use cross_val_predict — NOT model.predict(X) — to avoid
+    # data leakage. Each patient is predicted by a model that was
+    # trained WITHOUT that patient (honest out-of-fold predictions).
+    #
+    # We also call model.fit(X, y) AFTER cross_val_predict so that
+    # feature_importances_ is populated for analyze.py to read.
+    # This fit is only for feature importance — not for predictions.
+    # ------------------------------------------------------------------
     print("\nGenerating per-patient predictions for Rashomon Set models...")
-
-    for m in rashomon_models:
-        m['model'].fit(X, y)
-        m['predictions'] = m['model'].predict(X).tolist()
-
-    print("\nGenerating per-patient predictions for Rashomon Set models...")
-    print("Using cross_val_predict — each patient predicted by a model")
-    print("that was trained WITHOUT that patient (no data leakage).\n")
+    print("Using cross_val_predict (no data leakage — honest predictions)\n")
 
     for i, m in enumerate(rashomon_models):
 
-    # cross_val_predict runs 5-fold CV and returns one prediction per patient.
-    # Crucially: each patient's prediction comes from a model trained
-    # on the OTHER 4 folds — the model never saw that patient during training.
-    # This is the honest way to measure disagreement across models.
+        # Honest prediction: each patient predicted by model
+        # trained on the other 4 folds only
         cv_preds = cross_val_predict(m['model'], X, y, cv=5)
         m['predictions'] = cv_preds.tolist()
 
-    # We ALSO fit on the full dataset so that feature_importances_
-    # is available when analyze.py reads m['model'].feature_importances_
-    # Note: this fit is only used for feature importance, NOT predictions.
+        # Fit on full data to populate feature_importances_ for analyze.py
         m['model'].fit(X, y)
 
         if (i + 1) % 100 == 0:
